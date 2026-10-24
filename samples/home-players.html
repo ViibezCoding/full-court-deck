@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Player Samples</title>
+<style>
+  body { margin: 0; background: #070910; color: #e8ecf6; font-family: system-ui, Segoe UI, Arial, sans-serif; }
+  header { max-width: 1100px; margin: 0 auto; padding: 28px 16px 8px; }
+  header h1 { margin: 0 0 6px; font-size: 28px; }
+  header p { margin: 0; color: #9aa6c4; }
+  section { max-width: 1100px; margin: 26px auto; padding: 0 16px; }
+  section h2 { margin: 0 0 4px; font-size: 20px; }
+  section h2 span { color: #F26A1B; margin-right: 6px; }
+  section p { margin: 0 0 10px; color: #9aa6c4; }
+  .scene { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #0b0e1b; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .scene svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .scene .logo { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none;
+    font: 900 clamp(30px, 6.5vw, 76px)/.82 'Arial Black', Arial, sans-serif; transform: skewX(-6deg); text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+  .scene .logo span:last-child { color: #F26A1B; }
+
+  /* Same animations as the game (css/style.css) */
+  .hb-float { animation: hbFloat 3.2s ease-in-out infinite; }
+  .hb-float.late { animation-duration: 4s; animation-delay: -1.2s; }
+  .hb-sweep { animation: hbSweep 7s ease-in-out infinite alternate; transform-box: view-box; }
+  .hb-sweep.late { animation-duration: 9s; animation-delay: -3s; }
+  .hb-twinkle { animation: hbTwinkle 2.4s ease-in-out infinite; }
+  .hb-twinkle.late { animation-delay: -1.2s; }
+  .hb-shadow { animation: hbShadow 4s ease-in-out infinite; animation-delay: -1.2s; transform-box: fill-box; transform-origin: center; }
+  @keyframes hbFloat { 50% { transform: translateY(-14px); } }
+  @keyframes hbSweep { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+  @keyframes hbTwinkle { 50% { opacity: .35; } }
+  @keyframes hbShadow { 50% { transform: scale(.8); opacity: .6; } }
+
+  /* New sample animations */
+  .s-hang { animation: sHang 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes sHang { 50% { transform: translateY(-18px) rotate(-2.5deg); } }
+  .s-bounce { animation: sBounce 1.1s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  .s-bounce.late { animation-delay: -.55s; }
+  @keyframes sBounce { 0%, 100% { transform: translateY(0) scale(1.04, .96); } 50% { transform: translateY(-26px) scale(.97, 1.04); } }
+  .s-pulse { animation: sPulse 1.8s ease-in-out infinite; }
+  .s-pulse.late { animation-delay: -.9s; }
+  @keyframes sPulse { 50% { opacity: .35; } }
+  .s-burst { animation: sBurst 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes sBurst { 50% { transform: scale(1.07) rotate(5deg); } }
+  .s-pop { animation: sPop 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .s-pop.late { animation-delay: -.7s; }
+  @keyframes sPop { 50% { transform: scale(1.12) rotate(-3deg); } }
+  .s-dash { stroke-dasharray: 70 50; animation: sDash .5s linear infinite; }
+  @keyframes sDash { to { stroke-dashoffset: 120; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Home screen player samples</h1>
+  <p>Every sample keeps the same moving spotlights, twinkling crowd lights, court and hoops. Only the players and their animation change.</p>
+</header>
+<main id="samples"></main>
+
+<script>window.FCD = { V: {} };</script>
+<script src="../js/data/characters.js"></script>
+<script src="../js/ui/home-background.js"></script>
+<script>
+(function (F) {
+  const CH = F.CHARACTERS;
+  const POSES = F.V.POSES;
+
+  // ---------- small vector helpers ----------
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const mul = (a, k) => [a[0] * k, a[1] * k];
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const norm = a => { const l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l]; };
+  const pt = p => `${+p[0].toFixed(1)} ${+p[1].toFixed(1)}`;
+
+  let uid = 0;
+  let DEFS = [];
+
+  // Tapered limb: rounded ends, radius ra at a, rb at b, bulging to rm (muscle) at t along the way
+  function limb(a, b, ra, rb, rm = (ra + rb) / 2, t = 0.45) {
+    const d = norm(sub(b, a)), n = [-d[1], d[0]];
+    const m = mix(a, b, t), k = 2 * rm - (ra + rb) / 2;
+    const p1 = add(a, mul(n, ra)), p2 = add(b, mul(n, rb)), p3 = add(b, mul(n, -rb)), p4 = add(a, mul(n, -ra));
+    return { d: `M${pt(p1)} Q${pt(add(m, mul(n, k)))} ${pt(p2)} A${rb} ${rb} 0 0 0 ${pt(p3)} Q${pt(add(m, mul(n, -k)))} ${pt(p4)} A${ra} ${ra} 0 0 0 ${pt(p1)}Z`, mid: m, n, r: Math.max(ra, rm) };
+  }
+  const blob = (c, r) => ({ d: `M${pt([c[0] - r, c[1]])} a${r} ${r} 0 1 0 ${2 * r} 0 a${r} ${r} 0 1 0 ${-2 * r} 0Z`, mid: c, n: [0, 1], r });
+  const quad = (pts, n) => ({ d: 'M' + pts.map(pt).join(' L') + 'Z', mid: pts.reduce((s, p) => add(s, mul(p, 1 / pts.length)), [0, 0]), n, r: 13 });
+
+  // ---------- body geometry (shared by every style) ----------
+  // o.head = head radius (12 = normal, bigger = cartoon), o.thick = limb thickness multiplier
+  function geometry(P, ch, o = {}) {
+    const k = o.thick || 1, R = o.head || 12;
+    const near = P.far === 'L' ? 'R' : 'L', far = P.far;
+    const head = R === 12 ? P.head : add(P.neck, mul(norm(sub(P.head, P.neck)), R + 4));
+    const list = [];
+    const push = (shape, role) => list.push({ ...shape, role });
+
+    const arm = s => {
+      const sh = P['sh' + s], el = P['el' + s], ha = P['ha' + s];
+      push(limb(sh, el, 6.6 * k, 5 * k, 7.8 * k, 0.4), 'skin');
+      push(limb(el, ha, 5 * k, 3.8 * k, 5.6 * k, 0.35), 'skin');
+      push(limb(mix(el, ha, 0.7), mix(el, ha, 0.88), 4.7 * k, 4.4 * k), 'trim');
+      push(blob(ha, 5.3 * k), 'skin');
+    };
+    const shoe = (an, toe) => {
+      const dir = norm(toe), tip = add(an, mul(dir, 14 * k)), heel = add(an, mul(dir, -3 * k));
+      let n = [-dir[1], dir[0]]; if (n[1] < 0) n = mul(n, -1);
+      push(limb(heel, tip, 5.8 * k, 4.6 * k, 6 * k, 0.4), 'shoe');
+      push(limb(add(heel, mul(n, 4.2 * k)), add(tip, mul(n, 3.4 * k)), 2.1 * k, 1.8 * k), 'sole');
+    };
+    const leg = s => {
+      const hip = P['hip' + s], kn = P['kn' + s], an = P['an' + s];
+      push(limb(hip, kn, 9 * k, 6.6 * k, 9.8 * k, 0.4), 'skin');
+      push(limb(kn, an, 6.4 * k, 4 * k, 7.6 * k, 0.28), 'skin');
+      push(limb(mix(kn, an, 0.72), an, 5 * k, 4.5 * k), 'sock');
+      shoe(an, P['toe' + s]);
+    };
+    const shortsLeg = s => {
+      const hip = P['hip' + s], bot = mix(hip, P['kn' + s], 0.62);
+      const d = norm(sub(bot, hip)), n = [-d[1], d[0]];
+      // Fitted leg: hugs the thigh with gently curved sides and a flat hem
+      const r1 = 10.4 * k, r2 = 10.6 * k, m = mix(hip, bot, 0.5), bulge = 11.4 * k;
+      push({ d: `M${pt(add(hip, mul(n, r1)))} Q${pt(add(m, mul(n, bulge)))} ${pt(add(bot, mul(n, r2)))} L${pt(add(bot, mul(n, -r2)))} Q${pt(add(m, mul(n, -bulge)))} ${pt(add(hip, mul(n, -r1)))}Z`, mid: m, n, r: r2 }, 'shorts');
+      const h = add(bot, mul(d, -3));
+      push(limb(add(h, mul(n, r2 - 0.4)), add(h, mul(n, -(r2 - 0.4))), 1.3, 1.3), 'trim');
+    };
+
+    arm(far);
+    push(limb(P.neck, head, 5.6 * k, 5.6 * k), 'skin');
+    leg(far); leg(near);
+    shortsLeg(far);
+    // Waistband: same width as the bottom of the jersey, so nothing sticks out
+    const hd = norm(sub(P.hipR, P.hipL));
+    push(quad([add(P.hipL, add(mul(hd, -8.5 * k), [0, -6])), add(P.hipR, add(mul(hd, 8.5 * k), [0, -6])), add(P.hipR, add(mul(hd, 7 * k), [0, 8])), add(P.hipL, add(mul(hd, -7 * k), [0, 8]))], [1, 0]), 'shorts');
+    shortsLeg(near);
+
+    // Jersey (tank top with a scoop neck and armholes)
+    const shC = mix(P.shL, P.shR, 0.5), hipC = mix(P.hipL, P.hipR, 0.5);
+    const tc = mix(shC, hipC, 0.5), down = norm(sub(hipC, shC));
+    const out = (p, a) => add(p, mul(norm(sub(p, tc)), a));
+    const side = norm(sub(P.shR, P.shL));
+    const A = add(mix(P.shL, P.shR, 0.22), mul(down, -2)), B = add(mix(P.shL, P.shR, 0.78), mul(down, -2));
+    const sL = add(P.shL, add(mul(side, -3 * k), mul(down, -2))), sR = add(P.shR, add(mul(side, 3 * k), mul(down, -2)));
+    const pitL = add(P.shL, add(mul(side, -1 * k), mul(down, 18))), pitR = add(P.shR, add(mul(side, 1 * k), mul(down, 18)));
+    const armL = add(mix(sL, pitL, 0.5), mul(side, 6)), armR = add(mix(sR, pitR, 0.5), mul(side, -6));
+    const hL = add(add(P.hipL, mul(side, -8 * k)), mul(down, 4)), hR = add(add(P.hipR, mul(side, 8 * k)), mul(down, 4));
+    const nk = add(P.neck, mul(down, 11));
+    list.push({ role: 'torso', d: `M${pt(A)} Q${pt(nk)} ${pt(B)} L${pt(sR)} Q${pt(armR)} ${pt(pitR)} L${pt(hR)} L${pt(hL)} L${pt(pitL)} Q${pt(armL)} ${pt(sL)}Z`, a: sL, b: sR });
+    list.push({ role: 'line', d: `M${pt(A)} Q${pt(nk)} ${pt(B)} M${pt(sR)} Q${pt(armR)} ${pt(pitR)} M${pt(sL)} Q${pt(armL)} ${pt(pitL)}` });
+    list.push({ role: 'number', at: add(tc, mul(down, 5)) });
+    if (!o.headLast) list.push({ role: 'head', at: head, R });
+    arm(near);
+    if (o.headLast) list.push({ role: 'head', at: head, R });
+    if (P.ball && !o.noBall) list.push({ role: 'ball', at: o.thick ? add(P['ha' + near], mul(norm(sub(P.ball, P['ha' + near])), 13 * k)) : P.ball, r: 11 * (o.ballScale || 1) });
+    return list;
+  }
+
+  // Per-limb shading: light on the side facing up, dark underneath
+  function shade(part, cols) {
+    const id = 'g' + uid++;
+    let n = part.n; if (n[1] > 0) n = mul(n, -1);
+    const a = add(part.mid, mul(n, part.r)), b = add(part.mid, mul(n, -part.r));
+    DEFS.push(`<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}"><stop offset="0" stop-color="${cols[0]}"/><stop offset=".45" stop-color="${cols[1]}"/><stop offset="1" stop-color="${cols[2]}"/></linearGradient>`);
+    return `url(#${id})`;
+  }
+
+  // ---------- faces (drawn at head size 12, scaled) ----------
+  const faces = {
+    real: c => `
+      <path d="M-7 -3 L-2.5 -3.8 M2.5 -3.8 L7 -3" stroke="${c.hair}" stroke-width="1.4" stroke-linecap="round"/>
+      <ellipse cx="-4.5" cy="-.4" rx="2" ry="1.3" fill="#fff" opacity=".9"/><ellipse cx="4.5" cy="-.4" rx="2" ry="1.3" fill="#fff" opacity=".9"/>
+      <circle cx="-4.2" cy="-.4" r="1.1" fill="#140c08"/><circle cx="4.8" cy="-.4" r="1.1" fill="#140c08"/>
+      <path d="M0 .5 Q-1.4 3.8 0 4.6 Q1.4 4.8 2.2 4" stroke="${c.skinDark}" stroke-width="1" fill="none" stroke-linecap="round"/>
+      ${c.beard ? `<path d="M-10.5 1 Q-9.5 11.5 0 13.5 Q9.5 11.5 10.5 1 Q7 8 0 8.6 Q-7 8 -10.5 1Z" fill="${c.hair}"/>` : ''}
+      <path d="M-3.6 7 Q0 9.4 3.6 7" stroke="${c.beard ? '#f2e3d0' : '#3a1e14'}" stroke-width="1.2" fill="none" stroke-linecap="round"/>`,
+    toon: c => `
+      <ellipse cx="-4.6" cy="-.5" rx="3.3" ry="4.1" fill="#fff" stroke="#1a1022" stroke-width=".8"/>
+      <ellipse cx="4.6" cy="-.5" rx="3.3" ry="4.1" fill="#fff" stroke="#1a1022" stroke-width=".8"/>
+      <circle cx="-3.9" cy="0" r="1.9" fill="#1a1022"/><circle cx="5.3" cy="0" r="1.9" fill="#1a1022"/>
+      <circle cx="-3.3" cy="-.8" r=".6" fill="#fff"/><circle cx="5.9" cy="-.8" r=".6" fill="#fff"/>
+      <path d="M-8 -6.4 L-2.4 -5.4 M2.4 -5.4 L8 -6.4" stroke="#1a1022" stroke-width="1.5" stroke-linecap="round"/>
+      ${c.beard ? `<path d="M-10.5 3 Q-9 12 0 13 Q9 12 10.5 3 Q6 9 0 9 Q-6 9 -10.5 3Z" fill="${c.hair}" stroke="#1a1022" stroke-width=".8"/>` : ''}
+      <path d="M-4 6 Q0 10.5 4 6 Z" fill="#7a1f2a" stroke="#1a1022" stroke-width=".8" stroke-linejoin="round"/>
+      <ellipse cx="-8" cy="4" rx="1.8" ry="1.1" fill="#ff8a8a" opacity=".45"/><ellipse cx="8" cy="4" rx="1.8" ry="1.1" fill="#ff8a8a" opacity=".45"/>`,
+    none: () => '',
+  };
+
+  // ---------- styles ----------
+  // Each style says how to paint each part of the body
+  const STYLES = {
+    hero: {
+      paint(p, c) {
+        if (p.role === 'skin') return `fill="${shade(p, [c.skinLight, c.skin, c.skinDark])}"`;
+        if (p.role === 'shorts') return `fill="${shade(p, [c.jerseyLight, c.jersey, c.jerseyDark])}"`;
+        if (p.role === 'shoe') return `fill="${shade(p, ['#ffffff', '#e6e8ee', '#9aa0ae'])}"`;
+        if (p.role === 'sock') return `fill="${shade(p, ['#ffffff', '#eceef3', '#b4b8c4'])}"`;
+        if (p.role === 'sole') return `fill="${c.jerseyDark}"`;
+        if (p.role === 'trim') return `fill="${c.trim}"`;
+        if (p.role === 'torso') {
+          const id = 'g' + uid++;
+          DEFS.push(`<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${p.a[0]}" y1="${p.a[1] - 10}" x2="${p.b[0]}" y2="${p.b[1] + 30}"><stop offset="0" stop-color="${c.jerseyLight}"/><stop offset=".5" stop-color="${c.jersey}"/><stop offset="1" stop-color="${c.jerseyDark}"/></linearGradient>`);
+          return `fill="url(#${id})"`;
+        }
+        if (p.role === 'line') return `fill="none" stroke="${c.trim}" stroke-width="2.6" stroke-linecap="round"`;
+      },
+      head(c) {
+        const id = 'g' + uid++;
+        DEFS.push(`<radialGradient id="${id}" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="${c.skinLight}"/><stop offset=".55" stop-color="${c.skin}"/><stop offset="1" stop-color="${c.skinDark}"/></radialGradient>`);
+        return { skin: `url(#${id})`, face: faces.real(c) };
+      },
+    },
+    neon: {
+      paint(p, c) {
+        if (p.role === 'trim') return `fill="${c.trim}"`;
+        if (p.role === 'line') return `fill="none" stroke="${c.trim}" stroke-width="2.2" stroke-linecap="round"`;
+        return `fill="#04050b" stroke="${c.jerseyLight}" stroke-opacity=".55" stroke-width="1"`;
+      },
+      head: c => ({ skin: '#04050b', stroke: c.jerseyLight, face: '' }),
+      numberGlow: true,
+    },
+    toon: {
+      ink: '#1a1022',
+      paint(p, c) {
+        const ink = `stroke="#1a1022" stroke-width="2.4" stroke-linejoin="round"`;
+        const fill = { skin: c.skin, shorts: c.jerseyDark, shoe: '#ffffff', sock: '#ffffff', sole: c.jersey, trim: c.trim, torso: c.jersey }[p.role];
+        if (p.role === 'line') return `fill="none" stroke="${c.trim}" stroke-width="2.6"`;
+        return `fill="${fill}" ${ink}`;
+      },
+      head: c => ({ skin: c.skin, stroke: '#1a1022', face: faces.toon(c) }),
+    },
+    comic: {
+      paint(p, c) {
+        const ink = `stroke="#0b0b0f" stroke-width="3" stroke-linejoin="round"`;
+        const fill = { skin: c.skinLight, shorts: c.jersey, shoe: '#ffffff', sock: '#ffffff', sole: '#0b0b0f', trim: c.trim, torso: c.jerseyLight }[p.role];
+        if (p.role === 'line') return `fill="none" stroke="${c.trim}" stroke-width="3"`;
+        return `fill="${fill}" ${ink}`;
+      },
+      head: c => ({ skin: c.skinLight, stroke: '#0b0b0f', face: faces.real(c) }),
+      halftone: true,
+    },
+  };
+
+  // ---------- draw one player ----------
+  function figure(P, ch, flip, styleName, o = {}) {
+    const st = STYLES[styleName], c = ch.colors;
+    const parts = geometry(P, ch, o);
+    const body = parts.map(p => {
+      if (p.role === 'number') {
+        const [x, y] = p.at;
+        const glow = st.numberGlow ? `filter="url(#neonNum)"` : '';
+        const ink = styleName === 'comic' || styleName === 'toon' ? `stroke="#0b0b0f" stroke-width="1.6" paint-order="stroke"` : '';
+        return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="18" fill="${c.trim}" ${ink} ${glow} ${flip ? `transform="translate(${(2 * x).toFixed(1)} 0) scale(-1 1)"` : ''}>${ch.number}</text>`;
+      }
+      if (p.role === 'head') {
+        const h = st.head(c), s = p.R / 12;
+        const ln = h.stroke ? `stroke="${h.stroke}" stroke-width="${styleName === 'neon' ? 1 / s : 2.4 / s}"` : '';
+        return `<g transform="translate(${p.at[0].toFixed(1)} ${p.at[1].toFixed(1)}) scale(${s.toFixed(2)})">
+          <ellipse cx="-11.6" cy="1" rx="2.4" ry="3.4" fill="${h.skin}" ${ln}/><ellipse cx="11.6" cy="1" rx="2.4" ry="3.4" fill="${h.skin}" ${ln}/>
+          <ellipse cx="0" cy=".6" rx="11.8" ry="12.8" fill="${h.skin}" ${ln}/>
+          <path d="M-11.9 -1 A11.9 12.4 0 0 1 11.9 -1 Q6 -6.5 0 -6.8 Q-6 -6.5 -11.9 -1Z" fill="${styleName === 'neon' ? '#04050b' : c.hair}" ${ln}/>
+          ${c.headband ? `<path d="M-11.9 -3.2 Q0 -10.5 11.9 -3.2" stroke="${styleName === 'neon' ? c.trim : '#f4f4f2'}" stroke-width="3.6" fill="none"/>` : ''}
+          ${h.face}
+        </g>`;
+      }
+      if (p.role === 'ball') return `<g class="${o.ballClass || ''}">${F.V.basketball(p.at[0], p.at[1], p.r)}</g>`;
+      return `<path d="${p.d}" ${st.paint(p, c)}/>`;
+    }).join('');
+    let extra = '';
+    if (st.halftone) {
+      // Halftone dots over the shadow side of the body (comic-book shading)
+      const shapes = parts.filter(p => p.d && p.role !== 'line').map(p => `<path d="${p.d}"/>`).join('');
+      extra = `<g fill="url(#dots)" mask="url(#shadeMask)">${shapes}</g>`;
+    }
+    return body + extra;
+  }
+
+  // Glowing outline copy of a player (used behind the neon silhouettes)
+  function glowCopy(P, ch, o = {}) {
+    return geometry(P, ch, o).filter(p => p.d || p.role === 'head').map(p => p.d
+      ? `<path d="${p.d}"/>`
+      : `<ellipse cx="${p.at[0]}" cy="${p.at[1]}" rx="${p.R + 1}" ry="${p.R + 2}"/>`).join('');
+  }
+
+  const place = (inner, x, y, s, flip) => `<g transform="translate(${x} ${y}) scale(${flip ? -s : s} ${s})">${inner}</g>`;
+
+  // ---------- shared background (same as the game's home screen) ----------
+  function crowd(seed, n) {
+    let r = seed;
+    const rand = () => (r = (r * 16807) % 2147483647) / 2147483647;
+    const cols = ['#ffd27a', '#ff9a5a', '#a9c3ff', '#ffffff'];
+    let s = '';
+    for (let i = 0; i < n; i++) s += `<circle cx="${(rand() * 1600).toFixed(0)}" cy="${(30 + rand() * 560).toFixed(0)}" r="${(4 + rand() * 14).toFixed(1)}" fill="${cols[i % 4]}" opacity="${(0.08 + rand() * 0.22).toFixed(2)}"/>`;
+    return s;
+  }
+  function hoop() {
+    return `<g transform="translate(60 210) scale(1.45)">
+      <rect x="-14" y="40" width="10" height="1000" fill="#3a4058"/>
+      <path d="M-9 60 L14 60" stroke="#3a4058" stroke-width="8"/>
+      <rect x="12" y="-30" width="8" height="120" rx="2" fill="#e9edf5"/>
+      <path d="M20 58 L80 58" stroke="#F26A1B" stroke-width="5" stroke-linecap="round"/>
+      <path d="M24 60 L32 104 M40 60 L42 106 M58 60 L54 106 M76 60 L66 104 M28 80 L72 80 M32 96 L66 96" stroke="#f4f4f2" stroke-width="1.6" fill="none"/>
+    </g>`;
+  }
+  function scene({ back = '', behind = '', players, front = '' }) {
+    const defs = DEFS.join(''); DEFS = [];
+    return `<svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="hbBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#262c48"/><stop offset=".8" stop-color="#0b0e1b"/></linearGradient>
+        <linearGradient id="hbSpot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6dc" stop-opacity=".32"/><stop offset="1" stop-color="#fff6dc" stop-opacity="0"/></linearGradient>
+        <linearGradient id="hbFloor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6e4423"/><stop offset=".5" stop-color="#a87444"/><stop offset="1" stop-color="#c58e58"/></linearGradient>
+        <radialGradient id="hbVig" cx=".5" cy=".47" r=".31"><stop offset="0" stop-color="#05070d" stop-opacity=".82"/><stop offset=".7" stop-color="#05070d" stop-opacity=".45"/><stop offset="1" stop-color="#05070d" stop-opacity="0"/></radialGradient>
+        <filter id="hbBlur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="5"/></filter>
+        <filter id="hbRim" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="-1.6" dy="-1" stdDeviation=".5" flood-color="#fff1d6" flood-opacity=".8"/></filter>
+        <filter id="hbTrail" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter>
+        <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4"/></filter>
+        <filter id="neonNum" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <pattern id="dots" width="4.5" height="4.5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="2.25" cy="2.25" r="1.1" fill="#0b0b0f" opacity=".4"/></pattern>
+        <linearGradient id="shadeGrad" gradientUnits="userSpaceOnUse" x1="95" y1="0" x2="150" y2="25"><stop offset="0" stop-color="#000"/><stop offset=".6" stop-color="#000"/><stop offset=".8" stop-color="#fff"/></linearGradient>
+        <mask id="shadeMask" maskUnits="userSpaceOnUse" x="-100" y="-100" width="500" height="500"><rect x="-100" y="-100" width="500" height="500" fill="url(#shadeGrad)"/></mask>
+        ${defs}
+      </defs>
+      <rect width="1600" height="900" fill="url(#hbBg)"/>
+      <g filter="url(#hbBlur)">
+        <g class="hb-twinkle">${crowd(17, 60)}</g>
+        <g class="hb-twinkle late">${crowd(41, 60)}</g>
+      </g>
+      <rect y="760" width="1600" height="140" fill="url(#hbFloor)"/>
+      <path d="M0 790 H1600 M0 830 H1600 M0 870 H1600" stroke="rgba(60,30,10,.35)" stroke-width="1.5"/>
+      <path d="M560 900 Q800 780 1040 900" stroke="#fff" stroke-opacity=".5" stroke-width="4" fill="none"/>
+      <g stroke="#fff" stroke-opacity=".6" stroke-width="4" fill="none">
+        <path d="M0 772 H132 A280 34 0 0 1 132 840 H0"/>
+        <path d="M1600 772 H1468 A280 34 0 0 0 1468 840 H1600"/>
+      </g>
+      <g class="hb-sweep" style="transform-origin:250px -40px"><path d="M140 -40 L360 -40 L560 900 L-80 900 Z" fill="url(#hbSpot)"/></g>
+      <g class="hb-sweep late" style="transform-origin:1140px -40px"><path d="M1040 -40 L1240 -40 L1440 900 L840 900 Z" fill="url(#hbSpot)"/></g>
+      <ellipse cx="250" cy="806" rx="120" ry="12" fill="#000" opacity=".35"/>
+      <g class="hb-shadow"><ellipse cx="1140" cy="806" rx="80" ry="10" fill="#000" opacity=".45"/></g>
+      ${back}
+      ${hoop()}
+      <g transform="translate(1600 0) scale(-1 1)">${hoop()}</g>
+      ${behind}
+      ${players}
+      ${front}
+      <rect width="1600" height="900" fill="url(#hbVig)"/>
+    </svg>`;
+  }
+
+  // Ball flying from the Chef's hands into the right basket, on a loop
+  const shotArc = `<g opacity="0">
+      <animateMotion dur="2.6s" repeatCount="indefinite" path="M1150 330 Q1320 60 1466 300" keyPoints="0;1;1" keyTimes="0;.62;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="2.6s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.06;.58;.66;1"/>
+      ${F.V.basketball(0, 0, 20)}
+    </g>`;
+
+  // ---------- the samples ----------
+  const K = CH.king, C = CH.chef;
+  const KX = 385, KY = 248, CX = 955, CY = 300, S = 1.85;
+  const samples = [];
+
+  samples.push({
+    name: 'Current', tag: 'Now',
+    text: 'What the home screen looks like today, for comparison.',
+    svg: () => F.V.homeBackground(),
+  });
+
+  samples.push({
+    name: 'Arena Hero', tag: 'A',
+    text: 'Same art style as now, but with real body shapes: tapered arms and legs, muscles, a tank-top jersey with armholes, shorts, wristbands and sneakers. Every limb is shaded from the spotlight above. The King hangs on the rim and The Chef’s shot loops into the basket.',
+    svg: () => {
+      const king = figure(POSES.dunk, K, true, 'hero');
+      const chef = figure(POSES.shot, C, false, 'hero', { noBall: true });
+      return scene({
+        behind: `<g class="hb-twinkle" stroke="#fff3d6" stroke-width="4" stroke-linecap="round" opacity=".55"><path d="M440 560 L540 620 M460 505 L570 562 M485 450 L565 488"/></g>`,
+        players: `<g filter="url(#hbTrail)"><g opacity=".14">${place(king, 455, 368, S, true)}</g><g opacity=".26">${place(king, 420, 308, S, true)}</g></g>
+          <g filter="url(#hbRim)">
+            <g class="s-hang">${place(king, KX, KY, S, true)}</g>
+            <g class="hb-float late">${place(chef, CX, CY, S, false)}</g>
+          </g>`,
+        front: shotArc,
+      });
+    },
+  });
+
+  samples.push({
+    name: 'Neon Silhouettes', tag: 'B',
+    text: 'Dark silhouettes outlined in a glowing team color, like a poster or an arena intro video. The glow pulses, the jersey numbers and trim light up, and The King leaves a colored light trail behind his dunk.',
+    svg: () => {
+      const king = figure(POSES.dunk, K, true, 'neon');
+      const chef = figure(POSES.shot, C, false, 'neon');
+      const kGlow = `<g fill="${K.colors.jerseyLight}" filter="url(#neonGlow)">${glowCopy(POSES.dunk, K)}</g>`;
+      const cGlow = `<g fill="${C.colors.jerseyLight}" filter="url(#neonGlow)">${glowCopy(POSES.shot, C)}</g>`;
+      const trail = (g, o) => `<g opacity="${o}">${g}</g>`;
+      return scene({
+        players: `
+          ${trail(place(kGlow, 465, 380, S, true), .18)}${trail(place(kGlow, 425, 314, S, true), .3)}
+          <g class="hb-float">
+            <g class="s-pulse">${place(kGlow, KX, KY, S, true)}${place(kGlow, KX, KY, S, true)}</g>
+            ${place(king, KX, KY, S, true)}
+          </g>
+          <g class="hb-float late">
+            <g class="s-pulse late">${place(cGlow, CX, CY, S, false)}${place(cGlow, CX, CY, S, false)}</g>
+            ${place(chef, CX, CY, S, false)}
+          </g>`,
+      });
+    },
+  });
+
+  samples.push({
+    name: 'Cartoon Bobbleheads', tag: 'C',
+    text: 'Big heads, big eyes and thick outlines, like a mobile game or a bobblehead night giveaway. Both players bounce with a squash-and-stretch, and the ball spins.',
+    svg: () => {
+      const o = { head: 21, thick: 1.25, ballClass: 'hb-spin', ballScale: 1.25, headLast: true };
+      const king = figure(POSES.dunk, K, true, 'toon', o);
+      const chef = figure(POSES.shot, C, false, 'toon', o);
+      return scene({
+        behind: `<g class="hb-twinkle" stroke="#fff3d6" stroke-width="4" stroke-linecap="round" opacity=".5"><path d="M440 560 L540 620 M460 505 L570 562"/></g>`,
+        players: `<g class="s-bounce">${place(king, KX, KY + 40, S * .95, true)}</g>
+          <g class="s-bounce late">${place(chef, CX, CY + 40, S * .95, false)}</g>`,
+      });
+    },
+  });
+
+  samples.push({
+    name: 'Comic Book', tag: 'D',
+    text: 'Bold ink outlines, flat colors and halftone-dot shading, with a pop-art burst, speed lines and "SLAM!" / "SWISH!" sound effects that pulse.',
+    svg: () => {
+      const king = figure(POSES.dunk, K, true, 'comic');
+      const chef = figure(POSES.shot, C, false, 'comic');
+      const burst = (cx, cy, r1, r2, n, fill) => {
+        let d = '';
+        for (let i = 0; i < n * 2; i++) {
+          const a = (i / (n * 2)) * Math.PI * 2, r = i % 2 ? r2 : r1;
+          d += (i ? 'L' : 'M') + (cx + Math.cos(a) * r).toFixed(0) + ' ' + (cy + Math.sin(a) * r).toFixed(0);
+        }
+        return `<path d="${d}Z" fill="${fill}" stroke="#0b0b0f" stroke-width="6" stroke-linejoin="round"/>`;
+      };
+      const word = (x, y, rot, txt, fill, late) => `<g transform="translate(${x} ${y}) rotate(${rot})"><g class="s-pop${late ? ' late' : ''}"><text text-anchor="middle" font-family="Impact,Arial Black,sans-serif" font-size="72" font-weight="900" fill="${fill}" stroke="#0b0b0f" stroke-width="7" paint-order="stroke" letter-spacing="2">${txt}</text></g></g>`;
+      return scene({
+        back: `<g class="s-burst" opacity=".9">${burst(250, 470, 190, 130, 14, K.colors.trim)}${burst(250, 470, 120, 82, 14, '#fff3c4')}</g>
+          <g stroke="#fff3d6" stroke-width="6" stroke-linecap="round" opacity=".75" class="s-dash">
+            <path d="M600 600 L460 520 M640 520 L500 450 M620 680 L480 600 M660 440 L530 380"/>
+          </g>`,
+        players: `<g class="hb-float">${place(king, KX, KY, S, true)}</g>
+          <g class="hb-float late">${place(chef, CX, CY, S, false)}</g>`,
+        front: word(330, 210, -12, 'SLAM!', K.colors.trim) + word(1340, 210, 10, 'SWISH!', C.colors.trim, true),
+      });
+    },
+  });
+
+  const only = new URLSearchParams(location.search).get('only');
+  document.getElementById('samples').innerHTML = samples.filter((s, i) => only == null || +only === i).map(s => `<section>
+      <h2><span>${s.tag}</span>${s.name}</h2>
+      <p>${s.text}</p>
+      <div class="scene">${s.svg()}<div class="logo"><span>Full Court</span><span>Deck</span></div></div>
+    </section>`).join('');
+})(FCD);
+</script>
+<style>
+  .hb-spin { animation: hbSpin 1.2s linear infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes hbSpin { to { transform: rotate(360deg); } }
+</style>
+</body>
+</html>
