@@ -38,13 +38,13 @@ FCD.CONFIG = {
   RIVALRY_TARGET_BONUS: 5,          // Rivalry games go a little longer
   MARQUEE_TARGET_BONUS: 10,         // Marquee, Playoff and Finals games go longer (Playoffs and Finals = 120)
   // How much stronger opponents are each month (Nov ... Jun), separate from the target score.
-  OPP_SCALE: [0.9, 1.0, 1.3, 1.6, 1.9, 2.1, 2.25, 2.35],
+  OPP_SCALE: [0.95, 1.0, 1.25, 1.5, 1.8, 2.0, 2.25, 2.35],
   // OPP_POWER multiplies every opponent's points, Defense and bonuses.
   // Raise it to make the game harder, lower it to make it easier.
   OPP_POWER: 2.7,
   // Marquee Games (end-of-month bosses) are this much stronger on top of that, one number per month (Nov ... Apr).
-  // 1.10 = 10% stronger. December's is 10% easier than the rest (1.10 x 0.9 = 0.99).
-  MARQUEE_OPP_MULT: [1.10, 0.99, 1.10, 1.10, 1.10, 1.10],
+  // 1.00 = same strength as a regular game that month (the Marquee team's own plays still hit harder).
+  MARQUEE_OPP_MULT: [1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
   OPP_SCORE_MULT: 1.10,             // Opponents' points (and their "+X to their plays" buffs) are 10% stronger on top of that
   OPP_DEFENSE_MULT: 1.10,           // Opponents' Defense plays are 10% stronger on top of that
 
