@@ -50,7 +50,7 @@ All the numbers live in plain text files. Open them in VS Code, change a number,
 | Pack prices and odds | `js/data/packs.js` |
 
 ### Quick difficulty knobs (in `js/config.js`)
-- **`OPP_POWER`**: how hard opponents hit. `2.75` is the current setting. Try `2.5` for easier, `3.0` for harder.
+- **`OPP_POWER`**: how hard opponents hit. `2.7` is the current setting. Try `2.5` for easier, `3.0` for harder.
 - **`MARQUEE_OPP_MULT`**: extra strength for Marquee Games on top of `OPP_POWER`, one number per month (Nov–Apr). `1.10` = 10% stronger. December is currently `0.99` (10% easier than the others).
 - **`OPP_SCORE_MULT`**: extra strength for opponents' points (and their score buffs) only. `1.10` = 10% more.
 - **`TARGET_SCORE`**: points needed to win each month. Higher means longer games.
