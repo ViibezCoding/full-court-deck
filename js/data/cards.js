@@ -85,7 +85,7 @@
   card('box_out', { name: 'Box Out', type: 'defense', stat: 'REB', pool: 'base', rarity: 'common', text: 'Gain {v} Defense. Gain {x} Momentum.', effect: (g, v, l) => g.momentum(l.x),
     levels: lv([6, 7, 8, 9, 10, 11, 13], same(7, 1), { x: [2, 2, 2, 2, 3, 3, 5] }) });
   card('lockdown', { name: 'Lockdown', type: 'defense', stat: 'STL', pool: 'base', rarity: 'uncommon', text: 'Gain {v} Defense. Their next play scores half.', effect: g => g.half(),
-    levels: lv([5, 6, 7, 8, 10], same(5, 1), {}, 2) });
+    levels: lv([3, 4, 5, 6, 7, 8, 10], same(7, 1)) });
   card('block_party', { name: 'Block Party', type: 'defense', stat: 'BLK', pool: 'base', rarity: 'uncommon', text: 'Gain {v} Defense.',
     levels: lv([14, 15, 16, 17, 18, 20, 22], same(7, 2)) });
   card('take_charge', { name: 'Take the Charge', type: 'defense', stat: 'BLK', pool: 'base', rarity: 'uncommon', text: 'Gain {v} Defense. Gain {x} Momentum.', effect: (g, v, l) => g.momentum(l.x),
